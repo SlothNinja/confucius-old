@@ -1,0 +1,107 @@
+package confucius
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"testing"
+
+	"bitbucket.org/SlothNinja/slothninja-games/sn/contest"
+	"bitbucket.org/SlothNinja/slothninja-games/sn/restful"
+	"bitbucket.org/SlothNinja/slothninja-games/sn/user"
+	"github.com/gin-gonic/gin"
+	"go.chromium.org/gae/filter/dscache"
+	"go.chromium.org/gae/impl/memory"
+	"go.chromium.org/common/logging"
+	. "gopkg.in/check.v1"
+)
+
+var ctx *gin.Context
+var g1 *Game
+var u1, u2, u3 *user.User
+var storedContests contest.Contests
+
+// Hook up gocheck into the gotest runner.
+func Test(t *testing.T) { TestingT(t) }
+
+type MySuite struct{}
+
+var _ = Suite(&MySuite{})
+
+func (s *MySuite) SetUpSuite(c *C) {
+	createContext(c)
+}
+
+func (s *MySuite) SetUpTest(c *C) {
+	createTestUsers(c)
+	createTestGames(c)
+}
+
+func createContext(c *C) {
+	var err error
+	ctx = new(gin.Context)
+	ctx.Request = httptest.NewRequest("GET", "/", nil)
+	gctx := dscache.FilterRDS(memory.Use(context.Background()))
+	gctx = logging.SetLevel(gctx, logging.Debug)
+	ctx = restful.WithContext(ctx, gctx)
+	//		if p := strings.Split(c.Request.URL.Path, `/`); len(p) > 2 {
+	//			c.Set(prefixKey, p[1])
+	//		}
+
+	c.Assert(err, Equals, nil)
+}
+
+func getRequest() *http.Request {
+	r, _ := http.NewRequest("GET", "http://localhost", nil)
+	r.Header.Set("App-Testing", "1")
+	return r
+}
+
+func createTestUsers(c *C) {
+	u1, u2, u3 = user.New(ctx), user.New(ctx), user.New(ctx)
+
+	//User1
+	u1.ID = 1
+	u1.Name = "jeff"
+	u1.LCName = "jeff"
+	u1.Email = "jeff@example.com"
+	u1.GoogleID = "12345"
+
+	//User2
+	u2.ID = 2
+	u2.Name = "joe"
+	u2.LCName = "joe"
+	u2.Email = "joe@example.com"
+	u2.GoogleID = "23456"
+
+	//User3
+	u3.ID = 3
+	u3.Name = "trudy"
+	u3.LCName = "trudy"
+	u3.Email = "trudy@example.com"
+	u3.GoogleID = "23457"
+}
+
+func createTestGames(c *C) {
+	values1 := make(url.Values)
+	values1.Set("title", "Jeff's Game")
+	values1.Set("game-type", "1")
+	values1.Set("number_of_players", "3")
+
+	g1 = New(ctx)
+
+	c.Assert(u1, Not(IsNil))
+	user.WithCurrent(ctx, u1)
+
+	// Game 1
+	err := g1.FromForm(ctx, g1.Type)
+	c.Assert(err, IsNil)
+
+	g1.ID = 1
+	g1.UserIDS = []int64{1, 2, 3}
+	g1.Users = user.Users{u1, u2, u3}
+}
+
+func (s *MySuite) TearDownSuite(c *C) {
+}

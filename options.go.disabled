@@ -1,0 +1,53 @@
+package confucius
+
+import (
+	"fmt"
+	"net/url"
+	"sn/restful"
+	"strconv"
+)
+
+func options(this *Game, values url.Values, flashes *[]interface{}) (err error) {
+	colors, err := this.validateOptions(values, flashes)
+	if err != nil {
+		return
+	}
+
+	// Update Colors
+	cp := this.CurrentPlayer()
+	for i, color := range colors {
+		cmi := ((i - cp.ColorIndex()) + len(this.Players())) % len(this.Players())
+		cp.ColorMap[cmi] = color
+	}
+	return
+}
+
+func (this *Game) validateOptions(values url.Values, flashes *[]interface{}) (c sn.Colors, err error) {
+	for _, p := range this.Players {
+                var v int
+		v, err = strconv.Atoi(values.Get(fmt.Sprintf("index-%d", p.ID)))
+		if err != nil {
+			sn.AddFlash(flashes, err.Error())
+			err = sn.ValidationError
+			return
+		}
+		c = append(c, Color(v))
+	}
+
+	if !this.CurrentPlayers().IncludeUser(this.CurrentUser()) {
+		sn.AddFlash(flashes, "Only the current player may update game options.")
+		err = sn.ValidationError
+		return
+	}
+
+	for i := 0; i < this.NumPlayers() - 1; i++ {
+		for j := i + 1; j < this.NumPlayers(); j++ {
+			if c[i] == c[j] {
+				sn.AddFlash(flashes, "Each player must be assigned a different color.")
+				err = sn.ValidationError
+				return
+			}
+		}
+	}
+	return
+}
